@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Database EC2 (MySQL) Stack - Private Subnet (Ubuntu 22.04)"
+
+Resources:
+
+  DatabaseEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      KeyName: my-first-key # Hardcoded KeyPair
+      SubnetId: subnet-0410895393dfa7271 # Hardcoded Private Subnet
+      SecurityGroupIds:
+      - sg-037b824d2b8384fc1 # Existing database SG
+      ImageId: ami-0c7217cdde317cfec # Ubuntu 22.04 AMI (update per region)
+      Tags:
+      - Key: Name
+        Value: database-ec2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Update packages
+          apt update -y
+          apt upgrade -y
+
+          # Install MySQL server
+          DEBIAN_FRONTEND=noninteractive apt install -y mysql-server
+
+          # Enable and start MySQL service
+          systemctl enable mysql
+          systemctl start mysql
+
+          # Set MySQL root password
+          MYSQL_ROOT_PASSWORD='anas5313N!'
+          mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'anas5313N';"
+          mysql -e "FLUSH PRIVILEGES;"
+
+Outputs:
+  DatabaseEC2Id:
+    Description: "Instance ID of the database EC2"
+    Value: !Ref DatabaseEC2
+
+  DatabasePrivateIP:
+    Description: "Private IP of the database EC2"
+    Value: !GetAtt DatabaseEC2.PrivateIp

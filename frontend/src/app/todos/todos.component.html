@@ -1,0 +1,200 @@
+<div class="todos-container">
+  <div class="todos-header">
+    <div class="header-content">
+      <h1>
+        <span class="icon">📋</span>
+        My Todo Board
+      </h1>
+      <div class="stats">
+        <span class="stat-item">
+          <span class="stat-number">{{ completedCount }}</span>
+          <span class="stat-label">Done</span>
+        </span>
+        <span class="stat-item">
+          <span class="stat-number">{{ totalCount }}</span>
+          <span class="stat-label">Total</span>
+        </span>
+      </div>
+    </div>
+    
+    <div class="add-todo-section">
+      <div class="input-group">
+        <input
+          type="text"
+          [(ngModel)]="newTodoTitle"
+          (keyup.enter)="addTodo()"
+          placeholder="Add a new task..."
+          class="todo-input"
+        />
+        <textarea
+          [(ngModel)]="newTodoDescription"
+          placeholder="Add description (optional)"
+          class="todo-description-input"
+          rows="2"
+        ></textarea>
+        <button (click)="addTodo()" class="add-button">
+          <span class="add-icon">+</span>
+          Add Card
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="error-message">
+    {{ error }}
+    <button (click)="error = ''" class="close-error">×</button>
+  </div>
+
+  <div *ngIf="loading" class="loading">
+    <div class="spinner"></div>
+    <p>Loading todos...</p>
+  </div>
+
+  <div *ngIf="!loading && todos.length === 0" class="empty-state">
+    <div class="empty-icon">📝</div>
+    <h2>No tasks yet</h2>
+    <p>Add your first task to get started!</p>
+  </div>
+
+  <div *ngIf="!loading && todos.length > 0" class="board-container">
+    <div class="board-columns">
+      <!-- To Do Column -->
+      <div class="column">
+        <div class="column-header">
+          <h2 class="column-title">
+            <span class="column-icon">📝</span>
+            To Do
+          </h2>
+          <span class="column-count">{{ todoItems.length }}</span>
+        </div>
+        <div
+          class="column-content"
+          cdkDropList
+          id="todo-list"
+          [cdkDropListData]="todoItems"
+          [cdkDropListConnectedTo]="['in-progress-list', 'done-list']"
+          (cdkDropListDropped)="drop($event)"
+        >
+          <div
+            *ngFor="let todo of todoItems"
+            class="todo-card"
+            cdkDrag
+          >
+            <div class="card-content">
+              <div class="card-header">
+                <h3 class="card-title">{{ todo.title }}</h3>
+                <button class="delete-button" (click)="deleteTodo(todo)" title="Delete">
+                  <span>×</span>
+                </button>
+              </div>
+              <p *ngIf="todo.description" class="card-description">
+                {{ todo.description }}
+              </p>
+              <div class="card-footer">
+                <button class="toggle-button" (click)="toggleTodo(todo)" [class.completed]="todo.completed">
+                  <span *ngIf="!todo.completed">Mark as Done</span>
+                  <span *ngIf="todo.completed">✓ Done</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="todoItems.length === 0" class="empty-column">
+            <p>No tasks here</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- In Progress Column -->
+      <div class="column">
+        <div class="column-header">
+          <h2 class="column-title">
+            <span class="column-icon">⚡</span>
+            In Progress
+          </h2>
+          <span class="column-count">{{ inProgressItems.length }}</span>
+        </div>
+        <div
+          class="column-content"
+          cdkDropList
+          id="in-progress-list"
+          [cdkDropListData]="inProgressItems"
+          [cdkDropListConnectedTo]="['todo-list', 'done-list']"
+          (cdkDropListDropped)="drop($event)"
+        >
+          <div
+            *ngFor="let todo of inProgressItems"
+            class="todo-card"
+            cdkDrag
+          >
+            <div class="card-content">
+              <div class="card-header">
+                <h3 class="card-title">{{ todo.title }}</h3>
+                <button class="delete-button" (click)="deleteTodo(todo)" title="Delete">
+                  <span>×</span>
+                </button>
+              </div>
+              <p *ngIf="todo.description" class="card-description">
+                {{ todo.description }}
+              </p>
+              <div class="card-footer">
+                <button class="toggle-button" (click)="toggleTodo(todo)" [class.completed]="todo.completed">
+                  <span *ngIf="!todo.completed">Mark as Done</span>
+                  <span *ngIf="todo.completed">✓ Done</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="inProgressItems.length === 0" class="empty-column">
+            <p>No tasks here</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Done Column -->
+      <div class="column">
+        <div class="column-header">
+          <h2 class="column-title">
+            <span class="column-icon">✓</span>
+            Done
+          </h2>
+          <span class="column-count">{{ doneItems.length }}</span>
+        </div>
+        <div
+          class="column-content"
+          cdkDropList
+          id="done-list"
+          [cdkDropListData]="doneItems"
+          [cdkDropListConnectedTo]="['todo-list', 'in-progress-list']"
+          (cdkDropListDropped)="drop($event)"
+        >
+          <div
+            *ngFor="let todo of doneItems"
+            class="todo-card completed-card"
+            cdkDrag
+          >
+            <div class="card-content">
+              <div class="card-header">
+                <h3 class="card-title">{{ todo.title }}</h3>
+                <button class="delete-button" (click)="deleteTodo(todo)" title="Delete">
+                  <span>×</span>
+                </button>
+              </div>
+              <p *ngIf="todo.description" class="card-description">
+                {{ todo.description }}
+              </p>
+              <div class="card-footer">
+                <button class="toggle-button completed" (click)="toggleTodo(todo)">
+                  <span>✓ Done</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="doneItems.length === 0" class="empty-column">
+            <p>No tasks here</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

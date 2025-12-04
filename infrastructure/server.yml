@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Backend EC2 (Node.js) Stack - Public Subnet (Ubuntu 22.04)"
+
+Resources:
+
+  NodeBackendEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      KeyName: my-first-key
+      SubnetId: subnet-0a46793ed702ac054
+      SecurityGroupIds:
+        - sg-0a1c6b7d9ce836a24
+      ImageId: ami-0c7217cdde317cfec
+      Tags:
+        - Key: Name
+          Value: backend-ec2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          exec > /var/log/userdata.log 2>&1
+          echo "=== BOOTSTRAP START ==="
+
+          # Update system
+          apt update -y
+          apt install -y curl git
+
+          # Install Node.js 18
+          curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+          apt install -y nodejs
+
+          # Install PM2 globally
+          npm install -g pm2
+
+          # Create backend directory
+          mkdir -p /opt/backend
+          cd /opt/backend
+
+          # Clone repo once
+          if [ ! -d "app" ]; then
+            git clone https://github.com/anasmak04/aws-fullstack-app-ci-cd app
+          fi
+
+          cd /opt/backend/app/backend
+
+          # Install backend dependencies
+          npm install
+
+          # Start backend with PM2
+          pm2 start app.js --name backend-api
+          pm2 save
+          pm2 startup systemd --silent
+
+          echo "=== BOOTSTRAP END ==="
+
+Outputs:
+  BackendEC2Id:
+    Description: "Instance ID of the backend EC2"
+    Value: !Ref NodeBackendEC2
+
+  BackendPublicIP:
+    Description: "Public IP of the backend EC2"
+    Value: !GetAtt NodeBackendEC2.PublicIp

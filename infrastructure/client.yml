@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploy Angular Frontend on EC2 with NGINX
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: SSH KeyPair name for EC2 instance
+
+Resources:
+
+  FrontendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP
+      VpcId: vpc-04344737a2e0adac9   # <-- replace with your VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  FrontendEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      ImageId: ami-0c02fb55956c7d316   # Ubuntu 22.04 in us-east-1
+      SecurityGroupIds:
+        - !Ref FrontendSecurityGroup
+      SubnetId: subnet-0410895393dfa7271   # <-- replace with your subnet ID
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt update -y
+          apt install -y git curl nginx
+
+          # Install Node.js (v18)
+          curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+          apt install -y nodejs
+
+          # Clone ONLY FRONTEND folder
+          mkdir -p /opt/frontend
+          cd /opt/frontend
+          git clone https://github.com/anasmak04/aws-fullstack-app-ci-cd repo
+          cd repo/frontend
+
+          # Install Angular dependencies
+          npm install -g @angular/cli
+          npm install
+
+          # Build Angular app
+          ng build --configuration production
+
+          # Copy Angular build to NGINX
+          rm -rf /var/www/html/*
+          cp -r dist/* /var/www/html/
+
+          # Restart NGINX
+          systemctl restart nginx
+
+Outputs:
+  FrontendPublicIP:
+    Description: Angular App Public IP
+    Value: !GetAtt FrontendEC2.PublicIp

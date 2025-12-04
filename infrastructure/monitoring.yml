@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Monitoring + SNS notifications for WebApp EC2
+
+Resources:
+
+  # SNS Topic
+  AlertSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: WebAppAlerts
+
+  # SNS Subscription (email)
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: anasdev8@gmail.com  # replace with your email
+      TopicArn: !Ref AlertSNSTopic
+
+  # CloudWatch Alarm for CPU > 80%
+  WebAppHighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: WebAppHighCPU
+      AlarmDescription: Alarm if CPU exceeds 80%
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: InstanceId
+          Value: i-051a51fa176b73510   # replace with your WebApp EC2 instance ID
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertSNSTopic
+      TreatMissingData: notBreaching
+
+Outputs:
+  SNSTopicArn:
+    Description: SNS Topic ARN
+    Value: !Ref AlertSNSTopic
+
+  HighCPUAlarmName:
+    Description: CloudWatch Alarm Name
+    Value: !Ref WebAppHighCPUAlarm
