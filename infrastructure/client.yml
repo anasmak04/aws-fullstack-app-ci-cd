@@ -1,64 +1,110 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Description: Deploy Angular Frontend on EC2 with NGINX
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy Angular Frontend on S3 with CloudFront (fully updated)
 
 Parameters:
-  KeyName:
-    Type: AWS::EC2::KeyPair::KeyName
-    Description: SSH KeyPair name for EC2 instance
+  BucketNamePrefix:
+    Type: String
+    Default: client-app
+    Description: Prefix for the frontend S3 bucket
+
+  LoggingBucketNamePrefix:
+    Type: String
+    Default: client-app-logs
+    Description: Prefix for the logging S3 bucket
 
 Resources:
-
-  FrontendSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  # Logging bucket for S3 access logs
+  FrontendLoggingBucket:
+    Type: AWS::S3::Bucket
     Properties:
-      GroupDescription: Allow HTTP
-      VpcId: vpc-04344737a2e0adac9   # <-- replace with your VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
+      BucketName: !Sub "${LoggingBucketNamePrefix}-${AWS::AccountId}-${AWS::Region}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
 
-  FrontendEC2:
-    Type: AWS::EC2::Instance
+  # Frontend S3 bucket
+  FrontendBucket:
+    Type: AWS::S3::Bucket
     Properties:
-      InstanceType: t2.micro
-      KeyName: !Ref KeyName
-      ImageId: ami-0c02fb55956c7d316   # Ubuntu 22.04 in us-east-1
-      SecurityGroupIds:
-        - !Ref FrontendSecurityGroup
-      SubnetId: subnet-0410895393dfa7271   # <-- replace with your subnet ID
-      UserData:
-        Fn::Base64: |
-          #!/bin/bash
-          apt update -y
-          apt install -y git curl nginx
+      BucketName: !Sub "${BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      LoggingConfiguration:
+        DestinationBucketName: !Ref FrontendLoggingBucket
+        LogFilePrefix: access-logs/
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    DeletionPolicy: Retain
 
-          # Install Node.js (v18)
-          curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-          apt install -y nodejs
+  # S3 Bucket Policy to allow CloudFront to read
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: "s3:GetObject"
+            Resource: !Sub "${FrontendBucket.Arn}/*"
 
-          # Clone ONLY FRONTEND folder
-          mkdir -p /opt/frontend
-          cd /opt/frontend
-          git clone https://github.com/anasmak04/aws-fullstack-app-ci-cd repo
-          cd repo/frontend
+  # CloudFront Origin Access Identity
+  FrontendOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: Access Identity for frontend S3 bucket
 
-          # Install Angular dependencies
-          npm install -g @angular/cli
-          npm install
-
-          # Build Angular app
-          ng build --configuration production
-
-          # Copy Angular build to NGINX
-          rm -rf /var/www/html/*
-          cp -r dist/* /var/www/html/
-
-          # Restart NGINX
-          systemctl restart nginx
+  # CloudFront distribution
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.DomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${FrontendOAI}"
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
 
 Outputs:
-  FrontendPublicIP:
-    Description: Angular App Public IP
-    Value: !GetAtt FrontendEC2.PublicIp
+  FrontendBucketName:
+    Description: S3 Bucket for Angular frontend
+    Value: !Ref FrontendBucket
+
+  FrontendDistributionDomain:
+    Description: CloudFront domain to access Angular frontend
+    Value: !GetAtt FrontendDistribution.DomainName

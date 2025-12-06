@@ -7,32 +7,43 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      KeyName: my-first-key # Hardcoded KeyPair
-      SubnetId: subnet-0410895393dfa7271 # Hardcoded Private Subnet
+      KeyName: my-first-key
+      SubnetId: subnet-04f41508091d1d626   # Private subnet
       SecurityGroupIds:
-      - sg-037b824d2b8384fc1 # Existing database SG
-      ImageId: ami-0c7217cdde317cfec # Ubuntu 22.04 AMI (update per region)
+        - sg-037b824d2b8384fc1
+      ImageId: ami-0c7217cdde317cfec       # Ubuntu 22.04 LTS
       Tags:
-      - Key: Name
-        Value: database-ec2
+        - Key: Name
+          Value: database-ec2
+
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # Update packages
-          apt update -y
-          apt upgrade -y
+          exec > /var/log/userdata.log 2>&1
+          echo "===== START USERDATA ====="
 
-          # Install MySQL server
-          DEBIAN_FRONTEND=noninteractive apt install -y mysql-server
+          echo ">>> Update system"
+          apt-get update -y
+          apt-get upgrade -y
 
-          # Enable and start MySQL service
-          systemctl enable mysql
-          systemctl start mysql
+          echo ">>> Add Ubuntu Universe repo"
+          add-apt-repository universe -y
+          apt-get update -y
 
-          # Set MySQL root password
-          MYSQL_ROOT_PASSWORD='anas5313N!'
-          mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'anas5313N';"
-          mysql -e "FLUSH PRIVILEGES;"
+          echo ">>> Install MySQL Server"
+          DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
+
+          echo ">>> Enable MySQL and start service"
+          systemctl enable mysql || true
+          systemctl start mysql || true
+
+          echo ">>> Configure bind-address"
+          sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf || true
+
+          echo ">>> Restart MySQL"
+          systemctl restart mysql || true
+
+          echo "===== USERDATA COMPLETED ====="
 
 Outputs:
   DatabaseEC2Id:

@@ -1,33 +1,38 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Monitoring + SNS notifications for WebApp EC2
+Description: CloudFormation template for monitoring WebApp EC2 with SNS alerts and CloudWatch dashboard
+
+Parameters:
+  WebAppInstanceId:
+    Type: String
+    Description: EC2 Instance ID of your WebApp
 
 Resources:
 
-  # SNS Topic
+  # SNS Topic for alerts
   AlertSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: WebAppAlerts
 
-  # SNS Subscription (email)
+  # SNS Email Subscription
   AlertEmailSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: email
-      Endpoint: anasdev8@gmail.com  # replace with your email
+      Endpoint: anasdev8@gmail.com  # Replace with your email
       TopicArn: !Ref AlertSNSTopic
 
-  # CloudWatch Alarm for CPU > 80%
+  # CloudWatch Alarm for high CPU usage
   WebAppHighCPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: WebAppHighCPU
-      AlarmDescription: Alarm if CPU exceeds 80%
+      AlarmDescription: "Triggered if CPU exceeds 80%"
       Namespace: AWS/EC2
       MetricName: CPUUtilization
       Dimensions:
         - Name: InstanceId
-          Value: i-051a51fa176b73510   # replace with your WebApp EC2 instance ID
+          Value: !Ref WebAppInstanceId
       Statistic: Average
       Period: 300
       EvaluationPeriods: 1
@@ -37,11 +42,42 @@ Resources:
         - !Ref AlertSNSTopic
       TreatMissingData: notBreaching
 
+  # CloudWatch Dashboard
+  WebAppDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: WebAppDashboard
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 6,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/EC2", "CPUUtilization", "InstanceId", "${WebAppInstanceId}" ]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "CPU Utilization"
+              }
+            }
+          ]
+        }
+
 Outputs:
   SNSTopicArn:
-    Description: SNS Topic ARN
+    Description: "ARN of the SNS Topic"
     Value: !Ref AlertSNSTopic
 
   HighCPUAlarmName:
-    Description: CloudWatch Alarm Name
+    Description: "Name of the CloudWatch Alarm"
     Value: !Ref WebAppHighCPUAlarm
+
+  DashboardName:
+    Description: "Name of the CloudWatch Dashboard"
+    Value: !Ref WebAppDashboard

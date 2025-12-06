@@ -8,7 +8,7 @@ Resources:
     Properties:
       InstanceType: t3.micro
       KeyName: my-first-key
-      SubnetId: subnet-0a46793ed702ac054
+      SubnetId: subnet-0eb9555b08d34e28b
       SecurityGroupIds:
         - sg-0a1c6b7d9ce836a24
       ImageId: ami-0c7217cdde317cfec
