@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout repo
+      # 1️⃣ Checkout code
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -23,7 +23,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      # 3️⃣ Deploy Backend via SSH
+      # 3️⃣ Deploy backend via SSH
       - name: Deploy backend to EC2
         uses: appleboy/ssh-action@v0.1.6
         with:
@@ -31,29 +31,19 @@ jobs:
           username: ubuntu
           key: ${{ secrets.BACKEND_EC2_KEY }}
           script: |
-            # Create directory if missing
-            mkdir -p /opt/backend/app/backend
-            cd /opt/backend/app
-
-            # Clone repo if not exists
-            if [ ! -d "backend" ]; then
-              git clone https://github.com/anasmak04/aws-fullstack-app-ci-cd backend
-            fi
-
-            cd backend
-
-            # Pull latest code
+            cd /opt/backend/app/backend || exit
             git pull
-
-            # Install dependencies
             npm install
+            pm2 restart backend-api || pm2 start app.js --name backend-api
 
-            # Start or restart app with PM2
-            pm2 start app.js --name backend-api || pm2 restart backend-api
-            pm2 save
+      # 4️⃣ Build Angular frontend
+      - name: Build Angular frontend
+        run: |
+          cd frontend
+          npm install
+          npm run build --prod
 
-      # 4️⃣ Deploy Frontend to S3
+      # 5️⃣ Deploy frontend to S3
       - name: Deploy frontend to S3
         run: |
-          aws s3 sync ./webapp/ s3://client-app-644993686940-us-east-1/ --delete
-          aws s3 cp ./webapp/index.html s3://client-app-644993686940-us-east-1/index.html
+          aws s3 sync frontend/dist/frontend s3://client-app-644993686940-us-east-1 --delete
